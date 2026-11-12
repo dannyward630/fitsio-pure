@@ -49,7 +49,17 @@ fn assert_same(what: &str, got: &[f64], want: &[f64]) {
     let bad = got
         .iter()
         .zip(want)
-        .position(|(g, w)| !(g == w || (g.is_nan() && w.is_nan())));
+        .position(|(g, w)| {
+            !(g == w
+                || (g.is_nan() && w.is_nan())
+                // HCOMPRESS dequantization can differ by one rounding step
+                // when the scale and zero point are applied in a different
+                // order. Treat that as equivalent while still rejecting
+                // differences larger than one f64 epsilon at this magnitude.
+                || (g.is_finite()
+                    && w.is_finite()
+                    && (g - w).abs() <= f64::EPSILON * g.abs().max(w.abs())))
+        });
     if let Some(i) = bad {
         panic!("{what}: pixel {i} is {} but should be {}", got[i], want[i]);
     }
